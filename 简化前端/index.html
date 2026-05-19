@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>On-Call Assistant</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        bg: '#0d1117',
+        surface: '#161b22',
+        border: '#30363d',
+        accent: '#58a6ff',
+        muted: '#8b949e',
+        green: '#3fb950',
+        red: '#f85149',
+        orange: '#d2991d',
+      }
+    }
+  }
+}
+</script>
+<style>
+body { background: #0d1117; color: #c9d1d9; font-family: 'SF Mono', 'Source Code Pro', 'Consolas', monospace; }
+.tab-active { border-bottom: 2px solid #58a6ff; color: #58a6ff; }
+.snippet em { color: #d2991d; font-style: normal; }
+pre { white-space: pre-wrap; word-wrap: break-word; background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid #30363d; }
+.loading::after { content: '...'; animation: dots 1.5s steps(4, end) infinite; }
+@keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60%, 100% { content: '...'; } }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0d1117; } ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+</style>
+</head>
+<body class="min-h-screen" x-data="app()">
+<header class="border-b border-[#30363d] bg-[#161b22]">
+  <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold text-white">On-Call Assistant</h1>
+      <p class="text-xs text-[#8b949e]">值班工程师智能助手</p>
+    </div>
+    <div class="flex space-x-1 text-sm">
+      <button @click="tab=1" :class="tab===1 ? 'tab-active' : 'text-[#8b949e] hover:text-white'" class="px-4 py-2 transition-colors">关键词搜索</button>
+      <button @click="tab=2" :class="tab===2 ? 'tab-active' : 'text-[#8b949e] hover:text-white'" class="px-4 py-2 transition-colors">语义搜索</button>
+      <button @click="tab=3" :class="tab===3 ? 'tab-active' : 'text-[#8b949e] hover:text-white'" class="px-4 py-2 transition-colors">AI 对话</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-6 py-8">
+  <!-- Phase 1: Keyword Search -->
+  <div x-show="tab===1" x-cloak>
+    <div class="mb-6">
+      <form @submit.prevent="searchV1" class="flex space-x-3">
+        <input x-model="q1" type="text" placeholder="输入关键词搜索 SOP 文档..."
+          class="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white placeholder-[#484f58] focus:border-[#58a6ff] focus:outline-none text-sm">
+        <button type="submit" class="bg-[#238636] hover:bg-[#2ea043] text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors">搜索</button>
+      </form>
+    </div>
+    <div x-show="loading1" class="text-center text-[#8b949e] py-12"><span class="loading">搜索中</span></div>
+    <div x-show="error1" x-text="error1" class="text-[#f85149] text-center py-4"></div>
+    <div x-show="!loading1 && results1.length===0 && searched1" class="text-center text-[#8b949e] py-12">无匹配结果</div>
+    <template x-for="r in results1" :key="r.id">
+      <div class="bg-[#161b22] border border-[#30363d] rounded-lg p-4 mb-3 hover:border-[#58a6ff] transition-colors">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium"><span class="text-[#d2991d] font-mono mr-2" x-text="r.id"></span><span class="text-[#58a6ff]" x-text="r.title"></span></h3>
+          <span class="text-xs text-[#8b949e] bg-[#0d1117] px-2 py-0.5 rounded" x-text="r.score.toFixed(3)"></span>
+        </div>
+        <p class="text-xs text-[#8b949e] snippet" x-text="r.snippet"></p>
+      </div>
+    </template>
+    <div x-show="results1.length>0" class="text-xs text-[#484f58] text-center mt-4" x-text="results1.length + ' 条结果'"></div>
+  </div>
+
+  <!-- Phase 2: Semantic Search -->
+  <div x-show="tab===2" x-cloak>
+    <div class="mb-6">
+      <form @submit.prevent="searchV2" class="flex space-x-3">
+        <input x-model="q2" type="text" placeholder="输入自然语言描述，进行语义搜索..."
+          class="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white placeholder-[#484f58] focus:border-[#58a6ff] focus:outline-none text-sm">
+        <button type="submit" class="bg-[#238636] hover:bg-[#2ea043] text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors">搜索</button>
+      </form>
+    </div>
+    <div x-show="loading2" class="text-center text-[#8b949e] py-12"><span class="loading">语义搜索中</span></div>
+    <div x-show="error2" x-text="error2" class="text-[#f85149] text-center py-4"></div>
+    <div x-show="!loading2 && results2.length===0 && searched2" class="text-center text-[#8b949e] py-12">无匹配结果</div>
+    <template x-for="r in results2" :key="r.id">
+      <div class="bg-[#161b22] border border-[#30363d] rounded-lg p-4 mb-3 hover:border-[#58a6ff] transition-colors">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-medium"><span class="text-[#d2991d] font-mono mr-2" x-text="r.id"></span><span class="text-[#58a6ff]" x-text="r.title"></span></h3>
+          <span class="text-xs text-[#8b949e] bg-[#0d1117] px-2 py-0.5 rounded" x-text="r.score.toFixed(3)"></span>
+        </div>
+        <p class="text-xs text-[#8b949e]" x-text="r.snippet"></p>
+      </div>
+    </template>
+  </div>
+
+  <!-- Phase 3: AI Agent Chat -->
+  <div x-show="tab===3" x-cloak class="flex flex-col" style="height: calc(100vh - 180px);">
+    <div class="flex-1 overflow-y-auto mb-4 space-y-4" id="chat-messages">
+      <template x-for="(m,i) in chat" :key="i">
+        <div :class="m.role==='user' ? 'flex justify-end' : 'flex justify-start'">
+          <div :class="m.role==='user' ? 'bg-[#1f6feb] text-white max-w-[80%]' : 'bg-[#161b22] border border-[#30363d] max-w-[85%]'"
+               class="rounded-lg px-4 py-3 text-sm">
+            <div x-show="m.title" class="text-xs text-[#d2991d] mb-1" x-text="m.title"></div>
+            <div class="whitespace-pre-wrap" x-text="m.content"></div>
+            <div x-show="m.done" class="text-xs text-[#3fb950] mt-2 border-t border-[#30363d] pt-2">回答完成</div>
+          </div>
+        </div>
+      </template>
+      <div x-show="thinking" class="text-[#8b949e] text-sm py-2"><span class="loading">思考中</span></div>
+    </div>
+    <div class="border-t border-[#30363d] pt-4">
+      <form @submit.prevent="sendChat" class="flex space-x-3">
+        <input x-model="chatInput" type="text" placeholder="向 AI Agent 提问，例如：用户反馈登录页面打不开，怎么排查？"
+          class="flex-1 bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-white placeholder-[#484f58] focus:border-[#58a6ff] focus:outline-none text-sm">
+        <button type="submit" class="bg-[#1f6feb] hover:bg-[#388bfd] text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors">发送</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+function app() {
+  return {
+    tab: 1,
+    q1: '', q2: '', results1: [], results2: [], loading1: false, loading2: false, searched1: false, searched2: false, error1: '', error2: '',
+    chat: [], chatInput: '', thinking: false,
+
+    async searchV1() {
+      this.loading1 = true; this.error1 = ''; this.searched1 = true; this.results1 = [];
+      try {
+        const resp = await fetch(`/v1/search?q=${encodeURIComponent(this.q1)}&limit=20`);
+        const data = await resp.json();
+        this.results1 = data.results || [];
+        if (this.results1.length === 0) {
+          this.results1 = [];
+        }
+      } catch(e) { this.error1 = `搜索失败: ${e.message}`; }
+      this.loading1 = false;
+    },
+
+    async searchV2() {
+      this.loading2 = true; this.error2 = ''; this.searched2 = true; this.results2 = [];
+      try {
+        const resp = await fetch(`/v2/search?q=${encodeURIComponent(this.q2)}&limit=20`);
+        if (resp.status === 404) { this.error2 = 'Phase 2 尚未部署'; this.loading2 = false; return; }
+        const data = await resp.json();
+        this.results2 = data.results || [];
+      } catch(e) { this.error2 = `搜索失败: ${e.message}`; }
+      this.loading2 = false;
+    },
+
+    async sendChat() {
+      const msg = this.chatInput.trim();
+      if (!msg) return;
+      this.chat.push({role: 'user', content: msg});
+      this.chatInput = '';
+      this.thinking = true;
+      this.$nextTick(() => {
+        const el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+      try {
+        const resp = await fetch('/v3', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: msg}) });
+        if (resp.status === 404) {
+          this.chat.push({role: 'assistant', content: '<span class="text-[#8b949e]">Phase 3 尚未部署。Agent 将能读取 SOP 文档内容，结合知识进行推理，帮助排查线上故障。</span>'});
+          this.thinking = false; return;
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let assistantMsg = {role: 'assistant', content: '', title: '', done: false};
+        this.chat.push(assistantMsg);
+        const idx = this.chat.length - 1;
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'text') this.chat[idx].content += data.content;
+              if (data.type === 'tool') this.chat[idx].title = (this.chat[idx].title ? this.chat[idx].title + ', ' : '已读取: ') + data.file;
+              if (data.type === 'done') { this.chat[idx].done = true; this.thinking = false; }
+            }
+          }
+        }
+        if (!this.chat[idx].content) this.chat[idx].content = '无响应';
+      } catch(e) {
+        this.chat.push({role: 'assistant', content: `请求失败: ${e.message}`, done: true});
+      }
+      this.thinking = false;
+      this.$nextTick(() => {
+        const el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    }
+  };
+}
+</script>
+</body>
+</html>

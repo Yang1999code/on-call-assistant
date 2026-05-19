@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>On-Call Copilot — 值班智能助手</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        app: {
+          bg: '#090B10',
+          surface: '#13161D',
+          elevated: '#1A1E27',
+          border: '#1E2430',
+          accent: '#6366F1',
+          'accent-hover': '#818CF8',
+          text: '#ECEEF2',
+          muted: '#8B919E',
+          green: '#10B981',
+          red: '#EF4444',
+          orange: '#F59E0B',
+          yellow: '#D2991D',
+        }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif; }
+  body { background: #090B10; color: #ECEEF2; }
+  .tab-btn { position: relative; }
+  .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: #6366F1; border-radius: 1px 1px 0 0; }
+  pre { white-space: pre-wrap; word-wrap: break-word; background: #090B10; padding: 14px; border-radius: 8px; border: 1px solid #1E2430; font-size: 13px; line-height: 1.6; }
+  .loading-dots::after { content: ''; animation: loadingDots 1.5s infinite; }
+  @keyframes loadingDots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #1E2430; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2B3038; }
+  .fade-in { animation: fadeIn 0.25s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: #10B981; display: inline-block; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  [x-cloak] { display: none !important; }
+</style>
+</head>
+<body class="min-h-screen antialiased" x-data="app()">
+
+<!-- Header -->
+<header class="border-b border-app-border bg-app-surface/80 backdrop-blur-sm sticky top-0 z-10">
+  <div class="max-w-5xl mx-auto px-6 py-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-8 h-8 rounded-lg bg-app-accent/15 flex items-center justify-center">
+          <span class="text-app-accent text-lg">&#9670;</span>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold text-white tracking-tight">On-Call Copilot</h1>
+          <p class="text-xs text-app-muted">值班工程师智能助手 · 三层递进搜索架构</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="flex items-center gap-1.5 text-xs text-app-muted"><span class="pulse-dot"></span>系统就绪</span>
+        <a href="/status" target="_blank" class="text-xs text-app-muted hover:text-app-accent transition-colors">状态 →</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Tab Navigation -->
+<nav class="border-b border-app-border bg-app-bg sticky top-[73px] z-10">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="flex gap-1">
+      <button @click="tab=1" :class="tab===1 ? 'text-white active' : 'text-app-muted hover:text-app-text'" class="tab-btn px-5 py-3 text-sm font-medium transition-colors">关键词搜索</button>
+      <button @click="tab=2" :class="tab===2 ? 'text-white active' : 'text-app-muted hover:text-app-text'" class="tab-btn px-5 py-3 text-sm font-medium transition-colors">语义搜索</button>
+      <button @click="tab=3" :class="tab===3 ? 'text-white active' : 'text-app-muted hover:text-app-text'" class="tab-btn px-5 py-3 text-sm font-medium transition-colors">AI 对话 Agent</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="max-w-5xl mx-auto px-6 py-8">
+
+  <!-- ============ TAB 1: Keyword Search ============ -->
+  <div x-show="tab===1" x-cloak>
+
+    <!-- Feature Description -->
+    <div class="mb-6 p-5 rounded-xl bg-app-surface border border-app-border">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-app-accent/10 flex items-center justify-center shrink-0 mt-0.5">
+          <span class="text-app-accent text-sm font-bold">1</span>
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-white mb-1">关键词搜索 · Phase 1</h3>
+          <p class="text-xs text-app-muted leading-relaxed">
+            基于 <span class="text-app-text">SQLite FTS5 trigram</span> + <span class="text-app-text">jieba 中文分词</span> 的高精度关键词检索引擎。
+            短词自动回退至 LIKE 匹配，BS4 解析器已移除 script/style 标签，搜索范围仅限 SOP 正文内容。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="mb-6">
+      <form @submit.prevent="searchV1" class="flex gap-3">
+        <div class="flex-1 relative">
+          <input x-model="q1" type="text" placeholder="输入关键词，如 OOM、故障、CDN..."
+            class="w-full bg-app-bg border border-app-border rounded-xl px-4 py-3.5 text-sm text-white placeholder-app-muted/60 focus:border-app-accent focus:ring-1 focus:ring-app-accent/30 focus:outline-none transition-all">
+        </div>
+        <button type="submit" class="bg-app-accent hover:bg-app-accent-hover text-white px-7 py-3.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
+          <span>搜索</span>
+          <span class="text-white/60 text-xs">↵</span>
+        </button>
+      </form>
+      <p class="text-xs text-app-muted/70 mt-2 px-1">支持中英文混合查询 · 可搜索 HTML 实体解码后的符号（如 &amp;）</p>
+    </div>
+
+    <!-- States -->
+    <div x-show="loading1" class="text-center py-16">
+      <div class="inline-flex items-center gap-2 text-app-muted"><span class="loading-dots text-sm">搜索中</span></div>
+    </div>
+    <div x-show="error1" x-text="error1" class="text-app-red text-sm text-center py-8"></div>
+    <div x-show="!loading1 && results1.length===0 && searched1" class="text-center py-16">
+      <div class="text-4xl mb-3 opacity-30">&#128269;</div>
+      <p class="text-app-muted text-sm">未找到匹配的文档</p>
+      <p class="text-app-muted/60 text-xs mt-1">尝试更换关键词或使用语义搜索</p>
+    </div>
+
+    <!-- Results -->
+    <template x-for="(r, i) in results1" :key="r.id">
+      <div class="bg-app-surface border border-app-border rounded-xl p-5 mb-3 hover:border-app-accent/30 transition-all fade-in" :style="`animation-delay: ${i*40}ms`">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-mono text-app-yellow bg-app-yellow/10 px-2.5 py-1 rounded-md font-medium" x-text="r.id"></span>
+            <h3 class="text-sm font-semibold text-white" x-text="r.title"></h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-16 h-1.5 bg-app-border rounded-full overflow-hidden">
+              <div class="h-full bg-app-accent rounded-full transition-all" :style="`width: ${Math.round(r.score*100)}%`"></div>
+            </div>
+            <span class="text-xs text-app-muted font-mono w-10 text-right" x-text="r.score.toFixed(2)"></span>
+          </div>
+        </div>
+        <p class="text-xs text-app-muted leading-relaxed snippet" x-text="r.snippet"></p>
+      </div>
+    </template>
+    <div x-show="results1.length>0" class="text-xs text-app-muted/60 text-center mt-5" x-text="'共 ' + results1.length + ' 条结果'"></div>
+  </div>
+
+  <!-- ============ TAB 2: Semantic Search ============ -->
+  <div x-show="tab===2" x-cloak>
+
+    <!-- Feature Description -->
+    <div class="mb-6 p-5 rounded-xl bg-app-surface border border-app-border">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-app-accent/10 flex items-center justify-center shrink-0 mt-0.5">
+          <span class="text-app-accent text-sm font-bold">2</span>
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-white mb-1">语义搜索 · Phase 2</h3>
+          <p class="text-xs text-app-muted leading-relaxed">
+            <span class="text-app-text">ChromaDB 向量检索</span> + <span class="text-app-text">RRF 融合排序</span>（Reciprocal Rank Fusion, k=60）。
+            底层模型 paraphrase-multilingual-MiniLM-L12-v2（384维），支持口语化查询到专业 SOP 的跨领域语义映射。
+            无需精确关键词也能找到相关文档。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="mb-6">
+      <form @submit.prevent="searchV2" class="flex gap-3">
+        <div class="flex-1 relative">
+          <input x-model="q2" type="text" placeholder="用自然语言描述问题，如「服务器挂了」「黑客攻击」..."
+            class="w-full bg-app-bg border border-app-border rounded-xl px-4 py-3.5 text-sm text-white placeholder-app-muted/60 focus:border-app-accent focus:ring-1 focus:ring-app-accent/30 focus:outline-none transition-all">
+        </div>
+        <button type="submit" class="bg-app-accent hover:bg-app-accent-hover text-white px-7 py-3.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
+          <span>搜索</span>
+          <span class="text-white/60 text-xs">↵</span>
+        </button>
+      </form>
+      <p class="text-xs text-app-muted/70 mt-2 px-1">口语化查询自动映射到相关 SOP · 分数为 RRF 融合得分（关键词 + 语义双路召回）</p>
+    </div>
+
+    <!-- States -->
+    <div x-show="loading2" class="text-center py-16">
+      <div class="inline-flex items-center gap-2 text-app-muted"><span class="loading-dots text-sm">语义搜索中</span></div>
+    </div>
+    <div x-show="error2" x-text="error2" class="text-app-red text-sm text-center py-8"></div>
+    <div x-show="!loading2 && results2.length===0 && searched2" class="text-center py-16">
+      <div class="text-4xl mb-3 opacity-30">&#128270;</div>
+      <p class="text-app-muted text-sm">未找到语义匹配的文档</p>
+      <p class="text-app-muted/60 text-xs mt-1">尝试换一种表达方式描述问题</p>
+    </div>
+
+    <!-- Results -->
+    <template x-for="(r, i) in results2" :key="r.id">
+      <div class="bg-app-surface border border-app-border rounded-xl p-5 mb-3 hover:border-app-accent/30 transition-all fade-in" :style="`animation-delay: ${i*40}ms`">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-mono text-app-yellow bg-app-yellow/10 px-2.5 py-1 rounded-md font-medium" x-text="r.id"></span>
+            <h3 class="text-sm font-semibold text-white" x-text="r.title"></h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-16 h-1.5 bg-app-border rounded-full overflow-hidden">
+              <div class="h-full bg-app-accent rounded-full transition-all" :style="`width: ${Math.round(r.score*100)}%`"></div>
+            </div>
+            <span class="text-xs text-app-muted font-mono w-10 text-right" x-text="r.score.toFixed(2)"></span>
+          </div>
+        </div>
+        <p class="text-xs text-app-muted leading-relaxed" x-text="r.snippet"></p>
+      </div>
+    </template>
+    <div x-show="results2.length>0" class="text-xs text-app-muted/60 text-center mt-5" x-text="'共 ' + results2.length + ' 条结果'"></div>
+  </div>
+
+  <!-- ============ TAB 3: AI Agent Chat ============ -->
+  <div x-show="tab===3" x-cloak class="flex flex-col" style="height: calc(100vh - 240px);">
+
+    <!-- Feature Description -->
+    <div class="mb-4 p-4 rounded-xl bg-app-surface border border-app-border">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-app-accent/10 flex items-center justify-center shrink-0 mt-0.5">
+          <span class="text-app-accent text-sm font-bold">3</span>
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-white mb-1">AI Agent 对话 · Phase 3</h3>
+          <p class="text-xs text-app-muted leading-relaxed">
+            LLM 驱动的故障诊断 Agent。唯一工具 <span class="text-app-text font-mono">readFile</span>，
+            通过 DeepSeek function calling 自动定位并读取相关 SOP。回答含来源引用，绿色标记表示回答完成。
+          </p>
+        </div>
+        <div class="shrink-0 text-xs bg-app-green/10 text-app-green px-2.5 py-1 rounded-lg font-medium">
+          LLM 模式
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Messages -->
+    <div class="flex-1 overflow-y-auto mb-4 space-y-4 pr-1" id="chat-messages">
+      <!-- Welcome hint -->
+      <div x-show="chat.length===0" class="text-center py-12">
+        <div class="text-4xl mb-4 opacity-20">&#129302;</div>
+        <p class="text-app-muted text-sm mb-3">On-Call Copilot 就绪，随时为您排查故障</p>
+        <div class="flex flex-wrap justify-center gap-2 text-xs text-app-muted/70">
+          <span class="bg-app-surface border border-app-border px-3 py-1.5 rounded-lg">数据库主从延迟怎么处理？</span>
+          <span class="bg-app-surface border border-app-border px-3 py-1.5 rounded-lg">服务 OOM 了怎么办？</span>
+          <span class="bg-app-surface border border-app-border px-3 py-1.5 rounded-lg">怀疑有人入侵了系统</span>
+        </div>
+      </div>
+
+      <template x-for="(m,i) in chat" :key="i">
+        <div :class="m.role==='user' ? 'flex justify-end' : 'flex justify-start'" class="fade-in">
+          <div :class="m.role==='user'
+            ? 'bg-app-accent text-white max-w-[80%] rounded-2xl rounded-br-md'
+            : 'bg-app-surface border border-app-border max-w-[85%] rounded-2xl rounded-bl-md'"
+               class="px-5 py-4 text-sm">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold opacity-70" x-text="m.role==='user' ? '你' : 'Copilot'"></span>
+              <span x-show="m.title" class="text-xs text-app-yellow" x-text="m.title"></span>
+            </div>
+            <div class="whitespace-pre-wrap leading-relaxed" x-text="m.content"></div>
+            <div x-show="m.done" class="flex items-center gap-2 text-xs text-app-green mt-3 pt-3 border-t border-app-border">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-app-green"></span>回答完成
+            </div>
+          </div>
+        </div>
+      </template>
+      <div x-show="thinking" class="flex justify-start">
+        <div class="bg-app-surface border border-app-border rounded-2xl rounded-bl-md px-5 py-4 text-sm">
+          <span class="text-app-muted"><span class="loading-dots">思考中</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="border-t border-app-border pt-4">
+      <form @submit.prevent="sendChat" class="flex gap-3">
+        <input x-model="chatInput" type="text" placeholder="描述您的 On-Call 问题，Agent 将自动查找相关 SOP..."
+          class="flex-1 bg-app-bg border border-app-border rounded-xl px-4 py-3.5 text-sm text-white placeholder-app-muted/60 focus:border-app-accent focus:ring-1 focus:ring-app-accent/30 focus:outline-none transition-all">
+        <button type="submit" class="bg-app-accent hover:bg-app-accent-hover text-white px-7 py-3.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
+          <span>发送</span>
+          <span class="text-white/60 text-xs">↵</span>
+        </button>
+      </form>
+      <p class="text-xs text-app-muted/60 mt-2 px-1">Agent 自动读取 SOP → 流式输出分析结果 → 回答标注来源文件</p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function app() {
+  return {
+    tab: 1,
+    q1: '', q2: '', results1: [], results2: [], loading1: false, loading2: false, searched1: false, searched2: false, error1: '', error2: '',
+    chat: [], chatInput: '', thinking: false,
+
+    async searchV1() {
+      this.loading1 = true; this.error1 = ''; this.searched1 = true; this.results1 = [];
+      try {
+        const resp = await fetch(`/v1/search?q=${encodeURIComponent(this.q1)}&limit=20`);
+        const data = await resp.json();
+        this.results1 = data.results || [];
+      } catch(e) { this.error1 = `搜索失败: ${e.message}`; }
+      this.loading1 = false;
+    },
+
+    async searchV2() {
+      this.loading2 = true; this.error2 = ''; this.searched2 = true; this.results2 = [];
+      try {
+        const resp = await fetch(`/v2/search?q=${encodeURIComponent(this.q2)}&limit=20`);
+        if (resp.status === 404) { this.error2 = 'Phase 2 尚未部署'; this.loading2 = false; return; }
+        const data = await resp.json();
+        this.results2 = data.results || [];
+      } catch(e) { this.error2 = `搜索失败: ${e.message}`; }
+      this.loading2 = false;
+    },
+
+    async sendChat() {
+      const msg = this.chatInput.trim();
+      if (!msg) return;
+      this.chat.push({role: 'user', content: msg});
+      this.chatInput = '';
+      this.thinking = true;
+      this.$nextTick(() => {
+        const el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+      try {
+        const resp = await fetch('/v3', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: msg}) });
+        if (resp.status === 404) {
+          this.chat.push({role: 'assistant', content: 'Phase 3 尚未部署。Agent 将能读取 SOP 文档内容，结合知识进行推理，帮助排查线上故障。'});
+          this.thinking = false; return;
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let assistantMsg = {role: 'assistant', content: '', title: '', done: false};
+        this.chat.push(assistantMsg);
+        const idx = this.chat.length - 1;
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'text') this.chat[idx].content += data.content;
+              if (data.type === 'tool') this.chat[idx].title = (this.chat[idx].title ? this.chat[idx].title + ', ' : '已读取: ') + data.file;
+              if (data.type === 'done') { this.chat[idx].done = true; this.thinking = false; }
+            }
+          }
+        }
+        if (!this.chat[idx].content) this.chat[idx].content = '无响应';
+      } catch(e) {
+        this.chat.push({role: 'assistant', content: `请求失败: ${e.message}`, done: true});
+      }
+      this.thinking = false;
+      this.$nextTick(() => {
+        const el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    }
+  };
+}
+</script>
+</body>
+</html>
