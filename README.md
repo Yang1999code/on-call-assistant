@@ -1,6 +1,6 @@
 # On-Call Copilot — 企业级值班助手原型
 
-**题目一：On-Call 助手** | AI 编程面试笔试
+**题目一：On-Call 助手** | 
 
 一个可信赖、可验证、可观测的企业 On-Call Copilot 原型。三层递进架构：关键词搜索引擎 → 语义检索引擎 → 对话式 AI Agent。
 
@@ -54,7 +54,7 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 ---
 
-## 面试官使用指南
+## 使用指南
 
 > 以下步骤验证本题全部 13 个验证用例（来自 `question-1/README.md`）。
 
