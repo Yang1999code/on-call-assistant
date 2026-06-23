@@ -1,5 +1,9 @@
 # On-Call Copilot — 企业级值班助手原型
 
+<p align="center">
+  <img src="assets/cover.png" alt="On-Call Copilot cover" width="100%" />
+</p>
+
 **题目一：On-Call 助手** | 
 
 一个可信赖、可验证、可观测的企业 On-Call Copilot 原型。三层递进架构：关键词搜索引擎 → 语义检索引擎 → 对话式 AI Agent。
